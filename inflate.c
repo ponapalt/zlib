@@ -553,6 +553,8 @@ int ZEXPORT inflate(z_streamp strm, int flush) {
             }
             if (state->wbits == 0)
                 state->wbits = len;
+            if (len < state->wbits)
+                len = state->wbits;
             state->dmax = 1U << len;
             state->flags = 0;               /* indicate zlib header */
             Tracev((stderr, "inflate:   zlib header ok\n"));
