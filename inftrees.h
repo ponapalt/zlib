@@ -54,7 +54,22 @@ typedef struct {
 #  define ENOUGH_LENS 854
 #  define ENOUGH_DISTS 594
 #endif
-#define ENOUGH (ENOUGH_LENS+ENOUGH_DISTS)
+
+/* The same, for the deflate64 tables built by inflate_table9() in inftree9.c.
+   deflate64 has 32 distance codes instead of 30, so "enough 32 6 15" returns
+   594 there.  The root table sizes 9 and 6 are the fifth argument of the
+   inflate_table9() calls in infback9.c. */
+#define ENOUGH_LENS9 852
+#define ENOUGH_DISTS9 594
+#define ENOUGH9 (ENOUGH_LENS9+ENOUGH_DISTS9)
+
+/* struct inflate_state in inflate.h holds the code tables for both, so its
+   codes[] array has to be sized by the larger of the two. */
+#if (ENOUGH_LENS+ENOUGH_DISTS) > ENOUGH9
+#  define ENOUGH (ENOUGH_LENS+ENOUGH_DISTS)
+#else
+#  define ENOUGH ENOUGH9
+#endif
 
 /* Type of code to build for inflate_table() */
 typedef enum {
