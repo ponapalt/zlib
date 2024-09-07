@@ -515,9 +515,27 @@ int ZEXPORT inflateBack(z_streamp strm, in_func in, void FAR *in_desc,
             }
             if (state->offset > state->wsize - (state->whave < state->wsize ?
                                                 left : 0)) {
-                strm->msg = (z_const char *)"invalid distance too far back";
-                state->mode = BAD;
-                break;
+                if (!inflate_allow_distance_too_far_back) {
+                    strm->msg = (z_const char *)"invalid distance too far back";
+                    state->mode = BAD;
+                    break;
+                }
+                /* Mitigation, as in inflate(): the match reaches back before
+                   the start of the data.  Emit zeros for the unavailable
+                   part, which makes the remainder of the match land inside
+                   the window, then copy that remainder normally. */
+                copy = state->offset > state->wsize ? state->length :
+                       state->offset - (state->wsize -
+                           (state->whave < state->wsize ? left : 0));
+                if (copy > state->length) copy = state->length;
+                state->length -= copy;
+                Trace((stderr, "infback.c too far\n"));
+                while (copy--) {
+                    ROOM();
+                    *put++ = 0;
+                    left--;
+                }
+                if (state->length == 0) break;
             }
             Tracevv((stderr, "inflate:         distance %u\n", state->offset));
 

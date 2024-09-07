@@ -135,9 +135,12 @@ set(ZLIB_PRIVATE_HDRS
     crc32.h
     deflate.h
     gzguts.h
+    infback9.h
     inffast.h
+    inffix9.h
     inffixed.h
     inflate.h
+    inftree9.h
     inftrees.h
     trees.h
     zutil.h)
@@ -153,7 +156,9 @@ set(ZLIB_SRCS
     gzwrite.c
     inflate.c
     infback.c
+    infback9.c
     inftrees.c
+    inftree9.c
     inffast.c
     trees.c
     uncompr.c
