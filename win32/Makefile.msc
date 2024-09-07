@@ -76,9 +76,6 @@ minigzip_d.exe: minigzip.obj $(IMPLIB)
 {$(TOP)/test}.c.obj:
 	$(CC) -c -I$(TOP) $(WFLAGS) $(CFLAGS) $<
 
-{$(TOP)/contrib/infback9}.c.obj:
-	$(CC) -c $(WFLAGS) $(CFLAGS) -I ./ $<
-
 {$(TOP)/contrib/blast}.c.obj:
 	$(CC) -c $(WFLAGS) $(CFLAGS) -I ./ $<
 
@@ -124,9 +121,13 @@ uncompr.obj: $(TOP)/uncompr.c $(TOP)/zlib.h $(TOP)/zconf.h
 
 zutil.obj: $(TOP)/zutil.c $(TOP)/zutil.h $(TOP)/zlib.h $(TOP)/zconf.h
 
-infback9.obj: $(TOP)/contrib/infback9/infback9.c $(TOP)/contrib/infback9/infback9.h
+infback9.obj: $(TOP)/infback9.c $(TOP)/infback9.h $(TOP)/inftree9.h \
+	$(TOP)/inftrees.h $(TOP)/inflate.h $(TOP)/zutil.h $(TOP)/zlib.h \
+	$(TOP)/zconf.h
 
-inftree9.obj: $(TOP)/contrib/infback9/inftree9.c $(TOP)/contrib/infback9/inftree9.h
+inftree9.obj: $(TOP)/inftree9.c $(TOP)/inftree9.h $(TOP)/inffix9.h \
+	$(TOP)/inftrees.h $(TOP)/inflate.h $(TOP)/zutil.h $(TOP)/zlib.h \
+	$(TOP)/zconf.h
 
 blast.obj: $(TOP)/contrib/blast/blast.c $(TOP)/contrib/blast/blast.h
 

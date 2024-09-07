@@ -12,7 +12,18 @@
 #define ZLIB_INSECURE
 #endif
 
+/* Set to non-zero to keep inflate() going past an "invalid distance too far
+   back" error, filling the unavailable bytes with zeros.  Per-thread.
+   NOTE: zconf.h is included by zlib.h *outside* of its extern "C" block, so
+   the C linkage has to be requested explicitly here -- otherwise C++ callers
+   get a mangled name and fail to link against the C definition in zutil.c. */
+#ifdef __cplusplus
+extern "C" {
+#endif
 __declspec(thread) extern int inflate_allow_distance_too_far_back;
+#ifdef __cplusplus
+}
+#endif
 
 /*
  * If you *really* need a unique prefix for all types and library functions,
