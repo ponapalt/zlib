@@ -5,6 +5,11 @@
 
 #include "zutil.h"
 #include "inftree9.h"
+#include "inflate.h"
+
+#ifndef NULL
+#  define NULL 0
+#endif
 
 #define MAXBITS 15
 
@@ -29,9 +34,10 @@ const char inflate9_copyright[] =
    table index bits.  It will differ if the request is greater than the
    longest code or if it is less than the shortest code.
  */
-int inflate_table9(codetype type, unsigned short FAR *lens, unsigned codes,
-                   code FAR * FAR *table, unsigned FAR *bits,
-                   unsigned short FAR *work) {
+int ZLIB_INTERNAL inflate_table9(codetype type, unsigned short FAR *lens,
+                                 unsigned codes, code FAR * FAR *table,
+                                 unsigned FAR *bits,
+                                 unsigned short FAR *work) {
     unsigned len;               /* a code's length in bits */
     unsigned sym;               /* index of code symbols */
     unsigned min, max;          /* minimum and maximum code lengths */
@@ -45,11 +51,11 @@ int inflate_table9(codetype type, unsigned short FAR *lens, unsigned codes,
     unsigned fill;              /* index for replicating entries */
     unsigned low;               /* low bits for current root entry */
     unsigned mask;              /* mask for low root bits */
-    code this;                  /* table entry for duplication */
+    code here;                  /* table entry for duplication */
     code FAR *next;             /* next available space in table */
-    const unsigned short FAR *base;     /* base value table to use */
-    const unsigned short FAR *extra;    /* extra bits table to use */
-    int end;                    /* use base and extra for symbol > end */
+    const unsigned short FAR *base = NULL;  /* base value table to use */
+    const unsigned short FAR *extra = NULL; /* extra bits table to use */
+    unsigned match = 0;         /* use base and extra for symbol >= match */
     unsigned short count[MAXBITS+1];    /* number of codes of each length */
     unsigned short offs[MAXBITS+1];     /* offsets in table for each length */
     static const unsigned short lbase[31] = { /* Length codes 257..285 base */
@@ -111,8 +117,16 @@ int inflate_table9(codetype type, unsigned short FAR *lens, unsigned codes,
     for (max = MAXBITS; max >= 1; max--)
         if (count[max] != 0) break;
     if (root > max) root = max;
-    if (max == 0) return -1;            /* no codes! */
-    for (min = 1; min <= MAXBITS; min++)
+    if (max == 0) {                     /* no symbols to code at all */
+        here.op = (unsigned char)64;    /* invalid code marker */
+        here.bits = (unsigned char)1;
+        here.val = (unsigned short)0;
+        *(*table)++ = here;             /* make a table to force an error */
+        *(*table)++ = here;
+        *bits = 1;
+        return 0;     /* no symbols, but wait for decoding to report error */
+    }
+    for (min = 1; min < max; min++)
         if (count[min] != 0) break;
     if (root < min) root = min;
 
@@ -156,9 +170,9 @@ int inflate_table9(codetype type, unsigned short FAR *lens, unsigned codes,
 
        used keeps track of how many table entries have been allocated from the
        provided *table space.  It is checked for LENS and DIST tables against
-       the constants ENOUGH_LENS and ENOUGH_DISTS to guard against changes in
-       the initial root table size constants.  See the comments in inftree9.h
-       for more information.
+       the constants ENOUGH_LENS9 and ENOUGH_DISTS9 to guard against changes
+       in the initial root table size constants.  See the comments in
+       inftrees.h for more information.
 
        sym increments through all symbols, and the loop terminates when
        all codes of length max, i.e. all codes, have been processed.  This
@@ -169,20 +183,16 @@ int inflate_table9(codetype type, unsigned short FAR *lens, unsigned codes,
     /* set up for code type */
     switch (type) {
     case CODES:
-        base = extra = work;    /* dummy value--not used */
-        end = 19;
+        match = 20;
         break;
     case LENS:
         base = lbase;
-        base -= 257;
         extra = lext;
-        extra -= 257;
-        end = 256;
+        match = 257;
         break;
-    default:            /* DISTS */
+    case DISTS:
         base = dbase;
         extra = dext;
-        end = -1;
     }
 
     /* initialize state for loop */
@@ -197,33 +207,34 @@ int inflate_table9(codetype type, unsigned short FAR *lens, unsigned codes,
     mask = used - 1;            /* mask for comparing low */
 
     /* check available table space */
-    if ((type == LENS && used >= ENOUGH_LENS) ||
-        (type == DISTS && used >= ENOUGH_DISTS))
+    if ((type == LENS && used > ENOUGH_LENS9) ||
+        (type == DISTS && used > ENOUGH_DISTS9))
         return 1;
 
     /* process all codes and make table entries */
     for (;;) {
         /* create table entry */
-        this.bits = (unsigned char)(len - drop);
-        if ((int)(work[sym]) < end) {
-            this.op = (unsigned char)0;
-            this.val = work[sym];
+        here.bits = (unsigned char)(len - drop);
+        if (work[sym] + 1U < match) {
+            here.op = (unsigned char)0;
+            here.val = work[sym];
         }
-        else if ((int)(work[sym]) > end) {
-            this.op = (unsigned char)(extra[work[sym]]);
-            this.val = base[work[sym]];
+        else if (work[sym] >= match) {
+            here.op = (unsigned char)(extra[work[sym] - match]);
+            here.val = base[work[sym] - match];
         }
         else {
-            this.op = (unsigned char)(32 + 64);         /* end of block */
-            this.val = 0;
+            here.op = (unsigned char)(32 + 64);         /* end of block */
+            here.val = 0;
         }
 
         /* replicate for those indices with low len bits equal to huff */
         incr = 1U << (len - drop);
         fill = 1U << curr;
+        min = fill;                 /* save offset to next table */
         do {
             fill -= incr;
-            next[(huff >> drop) + fill] = this;
+            next[(huff >> drop) + fill] = here;
         } while (fill != 0);
 
         /* backwards increment the len-bit code huff */
@@ -251,7 +262,7 @@ int inflate_table9(codetype type, unsigned short FAR *lens, unsigned codes,
                 drop = root;
 
             /* increment past last table */
-            next += 1U << curr;
+            next += min;            /* here min is 1 << curr */
 
             /* determine length of next table */
             curr = len - drop;
@@ -265,8 +276,8 @@ int inflate_table9(codetype type, unsigned short FAR *lens, unsigned codes,
 
             /* check for enough space */
             used += 1U << curr;
-            if ((type == LENS && used >= ENOUGH_LENS) ||
-                (type == DISTS && used >= ENOUGH_DISTS))
+            if ((type == LENS && used > ENOUGH_LENS9) ||
+                (type == DISTS && used > ENOUGH_DISTS9))
                 return 1;
 
             /* point entry in root table to sub-table */
@@ -277,39 +288,14 @@ int inflate_table9(codetype type, unsigned short FAR *lens, unsigned codes,
         }
     }
 
-    /*
-       Fill in rest of table for incomplete codes.  This loop is similar to the
-       loop above in incrementing huff for table indices.  It is assumed that
-       len is equal to curr + drop, so there is no loop needed to increment
-       through high index bits.  When the current sub-table is filled, the loop
-       drops back to the root table to fill in any remaining entries there.
-     */
-    this.op = (unsigned char)64;                /* invalid code marker */
-    this.bits = (unsigned char)(len - drop);
-    this.val = (unsigned short)0;
-    while (huff != 0) {
-        /* when done with sub-table, drop back to root table */
-        if (drop != 0 && (huff & mask) != low) {
-            drop = 0;
-            len = root;
-            next = *table;
-            curr = root;
-            this.bits = (unsigned char)len;
-        }
-
-        /* put invalid code marker in table */
-        next[huff >> drop] = this;
-
-        /* backwards increment the len-bit code huff */
-        incr = 1U << (len - 1);
-        while (huff & incr)
-            incr >>= 1;
-        if (incr != 0) {
-            huff &= incr - 1;
-            huff += incr;
-        }
-        else
-            huff = 0;
+    /* fill in remaining table entry if code is incomplete (guaranteed to have
+       at most one remaining entry, since if the code is incomplete, the
+       maximum code length that was allowed to get this far is one bit) */
+    if (huff != 0) {
+        here.op = (unsigned char)64;            /* invalid code marker */
+        here.bits = (unsigned char)(len - drop);
+        here.val = (unsigned short)0;
+        next[huff] = here;
     }
 
     /* set return parameters */
@@ -317,3 +303,85 @@ int inflate_table9(codetype type, unsigned short FAR *lens, unsigned codes,
     *bits = root;
     return 0;
 }
+
+#include "inffix9.h"
+
+/*
+   Return state with length and distance decoding tables and index sizes set to
+   fixed code decoding.  The tables come from inffix9.h, which is generated by
+   makefixed9() below.
+ */
+void ZLIB_INTERNAL inflate_fixed9(struct inflate_state FAR *state) {
+    state->lencode = lenfix;
+    state->lenbits = 9;
+    state->distcode = distfix;
+    state->distbits = 5;
+}
+
+/*
+   Build and output length and distance decoding tables for fixed code
+   decoding.
+ */
+#ifdef MAKEFIXED
+#include <stdio.h>
+
+void makefixed9(void) {
+    unsigned sym, bits, low, size;
+    code *next, *lenfix, *distfix;      /* deliberately shadow the tables
+                                           included above, which is what this
+                                           routine regenerates */
+    struct inflate_state state;
+    code fixed[544];
+
+    /* literal/length table */
+    sym = 0;
+    while (sym < 144) state.lens[sym++] = 8;
+    while (sym < 256) state.lens[sym++] = 9;
+    while (sym < 280) state.lens[sym++] = 7;
+    while (sym < 288) state.lens[sym++] = 8;
+    next = fixed;
+    lenfix = next;
+    bits = 9;
+    inflate_table9(LENS, state.lens, 288, &(next), &(bits), state.work);
+
+    /* distance table */
+    sym = 0;
+    while (sym < 32) state.lens[sym++] = 5;
+    distfix = next;
+    bits = 5;
+    inflate_table9(DISTS, state.lens, 32, &(next), &(bits), state.work);
+
+    /* write tables */
+    puts("    /* inffix9.h -- table for decoding deflate64 fixed codes");
+    puts("     * Generated automatically by makefixed9().");
+    puts("     */");
+    puts("");
+    puts("    /* WARNING: this file should *not* be used by applications.");
+    puts("       It is part of the implementation of this library and is");
+    puts("       subject to change. Applications should only use zlib.h.");
+    puts("     */");
+    puts("");
+    size = 1U << 9;
+    printf("    static const code lenfix[%u] = {", size);
+    low = 0;
+    for (;;) {
+        if ((low % 6) == 0) printf("\n        ");
+        printf("{%u,%u,%d}", lenfix[low].op, lenfix[low].bits,
+               lenfix[low].val);
+        if (++low == size) break;
+        putchar(',');
+    }
+    puts("\n    };");
+    size = 1U << 5;
+    printf("\n    static const code distfix[%u] = {", size);
+    low = 0;
+    for (;;) {
+        if ((low % 5) == 0) printf("\n        ");
+        printf("{%u,%u,%d}", distfix[low].op, distfix[low].bits,
+               distfix[low].val);
+        if (++low == size) break;
+        putchar(',');
+    }
+    puts("\n    };");
+}
+#endif /* MAKEFIXED */

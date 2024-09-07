@@ -21,9 +21,6 @@ gcc_gvmat64/by Gilles Vollant <info@winimage.com>
         GCC Version of x86 64-bit (AMD64 and Intel EM64t) code for x64
         assembler to replace longest_match() and inflate_fast()
 
-infback9/   by Mark Adler <madler@alumni.caltech.edu>
-        Unsupported diffs to infback to decode the deflate64 format
-
 iostream/   by Kevin Ruland <kevin@rodin.wustl.edu>
         A C++ I/O streams interface to the zlib gz* functions
 
