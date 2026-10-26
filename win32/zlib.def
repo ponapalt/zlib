@@ -30,6 +30,8 @@ EXPORTS
     inflateGetHeader
     inflateBack
     inflateBackEnd
+    inflateBack9
+    inflateBack9End
     zlibCompileFlags
 ; utility functions
     compress
@@ -92,6 +94,7 @@ EXPORTS
     inflateInit_
     inflateInit2_
     inflateBackInit_
+    inflateBack9Init_
     gzgetc_
     zError
     inflateSyncPoint
