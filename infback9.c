@@ -360,7 +360,7 @@ int ZEXPORT inflateBack9(z_streamp strm, in_func in, void FAR *in_desc,
             }
 
             /* build code tables -- note: do not change the lenbits or distbits
-               values here (9 and 6) without reading the comments in inftree9.h
+               values here (9 and 6) without reading the comments in inftrees.h
                concerning the ENOUGH constants, which depend on those values */
             state->next = state->codes;
             state->lencode = (code const FAR *)(state->next);
